@@ -3,7 +3,7 @@ from typing_extensions import TypedDict
 
 import numpy as np
 import torch
-from torch.tensor import Tensor
+from torch import Tensor
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 
