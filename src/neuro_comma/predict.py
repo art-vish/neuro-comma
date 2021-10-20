@@ -56,7 +56,7 @@ class BasePredictor:
 
 
 class RepunctPredictor(BasePredictor):
-    def __call__(self, text: str, decode_map: Dict[int, str] = {0: '', 1: ',', 2: '.'}) -> str:
+    def __call__(self, text: str, decode_map: Dict[int, str] = {0: '', 1: ',', 2: '.', 3: '?'}) -> str:
         words_original_case = text.split()
         tokens = text.split()
         result = ""
