@@ -14,6 +14,7 @@ Path_type = Union[Path, str, os.PathLike]
 class CorrectionModel(nn.Module):
     def __init__(self,
                  pretrained_model: str,
+                 pretrained_model_path: str,
                  targets: Dict[str, int],
                  freeze_pretrained: Optional[bool] = False,
                  lstm_dim: int = -1,
@@ -21,7 +22,7 @@ class CorrectionModel(nn.Module):
                  **kwargs) -> None:
 
         super(CorrectionModel, self).__init__()
-        self.pretrained_transformer = PRETRAINED_MODELS[pretrained_model][0].from_pretrained(pretrained_model)
+        self.pretrained_transformer = PRETRAINED_MODELS[pretrained_model][0].from_pretrained(pretrained_model_path)
 
         if freeze_pretrained:
             for p in self.pretrained_transformer.parameters():

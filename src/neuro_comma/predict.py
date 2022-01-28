@@ -13,33 +13,40 @@ from neuro_comma.utils import get_last_pretrained_weight_path, load_params
 
 class BasePredictor:
     def __init__(self,
-                 model_name: str,
-                 models_root: Path = Path("models"),
-                 dataset_class: Type[BaseDataset] = BaseDataset,
-                 model_weights: Optional[str] = None,
+                 targets: dict[str, int],
+                 pretrained_model: str,
+                 model_weights_path: str,
+                 pretrained_model_path: Optional[str] = None,
+                 pretrained_tokenizer_model_path: Optional[str] = None,
+                 dataset_class: Type[BaseDataset] = BaseDataset,                 
                  quantization: Optional[bool] = False,
+                 freeze_pretrained: Optional[bool] = False,  
+                 lstm_dim: Optional[int] = -1,
+                 sequence_length: Optional[int] = 256,
                  *args,
                  **kwargs,
                  ) -> None:
-
-        model_dir = models_root / model_name
-        self.params = load_params(model_dir)
+        
         self.device = torch.device('cuda' if (not quantization) and torch.cuda.is_available() else 'cpu')
-
-        if not model_weights:
-            self.weights = get_last_pretrained_weight_path(model_dir)
-        else:
-            self.weights = model_dir / 'weights' / model_weights
+        self.targets = targets
+        self.pretrained_model = pretrained_model
+        self.pretrained_model_path = str(pretrained_model_path) if pretrained_model_path else pretrained_model
+        self.pretrained_tokenizer_model_path = str(pretrained_tokenizer_model_path) if pretrained_tokenizer_model_path else pretrained_model
+        self.weights = model_weights_path
+        self.freeze_pretrained = freeze_pretrained
+        self.lstm_dim = lstm_dim
+        self.sequence_length = sequence_length
 
         self.model = self.load_model(quantization=quantization)
         self.tokenizer = self.load_tokenizer()
         self.dataset_class = dataset_class
 
     def load_model(self, quantization: Optional[bool] = False) -> CorrectionModel:
-        model = CorrectionModel(self.params['pretrained_model'],
-                                self.params['targets'],
-                                self.params['freeze_pretrained'],
-                                self.params['lstm_dim'])
+        model = CorrectionModel(self.pretrained_model,
+                                self.pretrained_model_path,
+                                self.targets,
+                                self.freeze_pretrained,
+                                self.lstm_dim)
 
         if quantization:
             model = model.quantize()
@@ -49,9 +56,8 @@ class BasePredictor:
         model.eval()
         return model
 
-    def load_tokenizer(self) -> Union[PreTrainedTokenizer, PreTrainedTokenizerFast]:
-        name = self.params['pretrained_model']
-        tokenizer = PRETRAINED_MODELS[name][1].from_pretrained(name)
+    def load_tokenizer(self) -> Union[PreTrainedTokenizer, PreTrainedTokenizerFast]:        
+        tokenizer = PRETRAINED_MODELS[self.pretrained_model][1].from_pretrained(self.pretrained_tokenizer_model_path)
         return tokenizer
 
 
@@ -61,8 +67,8 @@ class RepunctPredictor(BasePredictor):
         tokens = text.split()
         result = ""
 
-        token_style = PRETRAINED_MODELS[self.params['pretrained_model']][3]
-        seq_len = self.params['sequence_length']
+        token_style = PRETRAINED_MODELS[self.pretrained_model][3]
+        seq_len = self.sequence_length
         decode_idx = 0
 
         data = torch.tensor(self.dataset_class.parse_tokens(tokens,
