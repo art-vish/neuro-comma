@@ -15,11 +15,9 @@ class CorrectionModel(nn.Module):
     def __init__(self,
                  pretrained_model: str,
                  pretrained_model_path: str,
-                 targets: Dict[str, int],
+                 punctuation_dict: Dict[str, int],
                  freeze_pretrained: Optional[bool] = False,
-                 lstm_dim: int = -1,
-                 *args,
-                 **kwargs) -> None:
+                 lstm_dim: int = -1) -> None:
 
         super(CorrectionModel, self).__init__()
         self.pretrained_transformer = PRETRAINED_MODELS[pretrained_model][0].from_pretrained(pretrained_model_path)
@@ -43,7 +41,7 @@ class CorrectionModel(nn.Module):
                             bidirectional=True)
 
         self.linear = nn.Linear(in_features=hidden_size * 2,
-                                out_features=len(targets))
+                                out_features=len(punctuation_dict))
 
     def forward(self, x: Tensor, attn_masks: Tensor) -> Tensor:
         # add dummy batch for single sample
@@ -73,3 +71,38 @@ class CorrectionModel(nn.Module):
 
     def modify_last_linear(self, *args, **kwargs):
         self.linear = nn.Linear(*args, **kwargs)
+
+
+class DeepPunctuation(nn.Module):
+    def __init__(self,
+                 pretrained_model: str,
+                 pretrained_model_path: str,
+                 punctuation_dict: Dict[str, int],
+                 freeze_pretrained: Optional[bool] = False,
+                 lstm_dim: int = -1):
+        super(DeepPunctuation, self).__init__()
+        self.bert_layer = PRETRAINED_MODELS[pretrained_model][0].from_pretrained(pretrained_model_path)
+        # Freeze bert layers
+        if freeze_pretrained:
+            for p in self.bert_layer.parameters():
+                p.requires_grad = False
+        bert_dim = PRETRAINED_MODELS[pretrained_model][2]
+        if lstm_dim == -1:
+            hidden_size = bert_dim
+        else:
+            hidden_size = lstm_dim
+        self.lstm = nn.LSTM(input_size=bert_dim, hidden_size=hidden_size, num_layers=1, bidirectional=True)
+        self.linear = nn.Linear(in_features=hidden_size*2, out_features=len(punctuation_dict))
+
+    def forward(self, x, attn_masks):
+        if len(x.shape) == 1:
+            x = x.view(1, x.shape[0])  # add dummy batch for single sample
+        # (B, N, E) -> (B, N, E)
+        x = self.bert_layer(x, attention_mask=attn_masks)[0]
+        # (B, N, E) -> (N, B, E)
+        x = torch.transpose(x, 0, 1)
+        x, (_, _) = self.lstm(x)
+        # (N, B, E) -> (B, N, E)
+        x = torch.transpose(x, 0, 1)
+        x = self.linear(x)
+        return x
