@@ -177,4 +177,5 @@ class RepunctPredictorOriginal(BasePredictor):
                         result += words[decode_idx] + \
                             self.targets[y_predict[i].item()] + ' '
                         decode_idx += 1
+        result = result.strip()
         return result
